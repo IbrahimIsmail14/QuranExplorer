@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quran Explorer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f4f4;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      transition: background 0.4s, color 0.4s;
+    }
+    .dark {
+      background: #121212;
+      color: #eee;
+    }
+    header {
+      background: #008080;
+      color: white;
+      padding: 1em;
+      text-align: center;
+    }
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 1em;
+    }
+    nav button {
+      margin: 0.25em;
+      padding: 0.5em 1em;
+      background: #008080;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    nav button:hover {
+      background: #006666;
+    }
+    #content {
+      padding: 1em;
+      max-width: 900px;
+      margin: auto;
+    }
+    .surah h2 {
+      text-align: center;
+      font-size: 1.6em;
+      margin-bottom: 1em;
+    }
+    .ayah {
+      font-family: 'Noto Naskh Arabic', serif;
+      font-size: 1.6em;
+      margin-top: 1em;
+      direction: rtl;
+      text-align: right;
+    }
+    .translation {
+      font-size: 1em;
+      margin-bottom: 1em;
+      color: #666;
+    }
+    audio {
+      width: 100%;
+      margin-bottom: 1em;
+    }
+    .tafsir {
+      font-size: 0.9em;
+      background: #f0f0f0;
+      padding: 0.5em;
+      border-left: 4px solid #008080;
+      margin-bottom: 1em;
+    }
+    .dark .tafsir {
+      background: #1e1e1e;
+    }
+    .loading::after {
+      content: ' ⏳';
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @media (max-width: 600px) {
+      nav {
+        flex-direction: column;
+        align-items: center;
+      }
+      nav button {
+        width: 90%;
+      }
+    }
+    .top-bar {
+      display: flex;
+      justify-content: center;
+      gap: 1em;
+      padding: 1em;
+      background: #eee;
+    }
+    .top-bar select, .top-bar input, .top-bar button {
+      padding: 0.5em;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    .play-all-btn {
+      display: block;
+      margin: 1em auto;
+      padding: 0.6em 1.2em;
+      background: #007777;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .play-all-btn:hover {
+      background: #005f5f;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Quran Explorer</h1>
+    <button onclick="toggleNightMode()">🌙 Toggle Night Mode</button>
+  </header>
+
+  <div class="top-bar">
+    <select id="languageSelector">
+      <option value="en.asad">English (Asad)</option>
+      <option value="en.pickthall">English (Pickthall)</option>
+      <option value="ur.junagarhi">Urdu</option>
+      <option value="fr.hamidullah">French</option>
+    </select>
+    <select id="reciterSelector">
+      <option value="ar.alafasy">Mishary Alafasy</option>
+      <option value="ar.hudhaify">Imam Hudhaify</option>
+      <option value="ar.sudais">Abdurrahman As-Sudais</option>
+    </select>
+    <input type="text" id="searchInput" placeholder="Search Surah name...">
+  </div>
+
+  <nav id="surah-list"></nav>
+
+  <div id="content">
+    <p>Loading Surahs...</p>
+  </div>
+
+  <script>
+    const nav = document.getElementById('surah-list');
+    const content = document.getElementById('content');
+    const langSelector = document.getElementById('languageSelector');
+    const reciterSelector = document.getElementById('reciterSelector');
+    const searchInput = document.getElementById('searchInput');
+
+    let selectedLang = langSelector.value;
+    let selectedReciter = reciterSelector.value;
+    let allSurahs = [];
+
+    function toggleNightMode() {
+      const isDark = document.body.classList.toggle('dark');
+      localStorage.setItem('quranExplorerDark', isDark);
+    }
+
+    if (localStorage.getItem('quranExplorerDark') === 'true') {
+      document.body.classList.add('dark');
+    }
+
+    langSelector.addEventListener('change', () => {
+      selectedLang = langSelector.value;
+      loadSurah(1);
+    });
+
+    reciterSelector.addEventListener('change', () => {
+      selectedReciter = reciterSelector.value;
+      loadSurah(1);
+    });
+
+    searchInput.addEventListener('input', () => {
+      const searchTerm = searchInput.value.toLowerCase();
+      const filtered = allSurahs.filter(s => s.englishName.toLowerCase().includes(searchTerm));
+      renderSurahButtons(filtered);
+    });
+
+    async function loadSurahs() {
+      try {
+        const data = await fetch('https://api.alquran.cloud/v1/surah').then(r => r.json());
+        allSurahs = data.data;
+        renderSurahButtons(allSurahs);
+        loadSurah(1);
+      } catch {
+        content.innerHTML = '<p>Error loading Surahs. Please refresh.</p>';
+      }
+    }
+
+    function renderSurahButtons(surahs) {
+      nav.innerHTML = '';
+      surahs.forEach(surah => {
+        const btn = document.createElement('button');
+        btn.textContent = `${surah.number}. ${surah.englishName}`;
+        btn.onclick = () => loadSurah(surah.number);
+        nav.appendChild(btn);
+      });
+    }
+
+    async function loadSurah(num) {
+      if (!selectedReciter) return alert('Please wait for reciters to load.');
+      content.innerHTML = '<div class="loading">Loading Surah...</div>';
+      try {
+        const [ar, tr] = await Promise.all([
+          fetch(`https://api.alquran.cloud/v1/surah/${num}`).then(r => r.json()),
+          fetch(`https://api.alquran.cloud/v1/surah/${num}/${selectedLang}`).then(r => r.json())
+        ]);
+        const name = ar.data.englishName;
+        document.title = `Quran Explorer – ${name}`;
+        let html = `<div class="surah"><h2>${name}</h2>
+                    <button class="play-all-btn" onclick="playAllAudios()">▶️ Play All</button>`;
+        ar.data.ayahs.forEach((a, i) => {
+          html += `<div class="ayah">${a.text}</div>
+                   <div class="translation">${tr.data.ayahs[i].text}</div>
+                   <audio controls id="audio-${i}">
+                     <source src="https://cdn.islamic.network/quran/audio/128/${selectedReciter}/${a.number}.mp3">
+                   </audio>
+                   <p class="tafsir loading" id="tafsir-${a.number}">Loading tafsir...</p>`;
+        });
+        html += '</div>';
+        content.innerHTML = html;
+
+        ar.data.ayahs.forEach(async a => {
+          try {
+            const tf = await fetch(`https://api.quran.com/v4/quran/tafsirs/169/${a.number}`).then(r => r.json());
+            document.getElementById(`tafsir-${a.number}`).textContent = tf.data.text || 'No tafsir.';
+          } catch {
+            document.getElementById(`tafsir-${a.number}`).textContent = 'Tafsir not found.';
+          }
+        });
+      } catch {
+        content.innerHTML = '<p>Error loading Surah. Try again.</p>';
+      }
+    }
+
+    function playAllAudios() {
+      const audios = Array.from(document.querySelectorAll('audio'));
+      if (audios.length === 0) return;
+
+      let index = 0;
+      audios[index].play();
+
+      audios.forEach((audio, i) => {
+        audio.onended = () => {
+          if (i + 1 < audios.length) {
+            audios[i + 1].play();
+          }
+        };
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', loadSurahs);
+  </script>
+</body>
+</html>
